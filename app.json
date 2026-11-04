@@ -8,9 +8,11 @@
     "scheme": "project",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.alanacharya.ringo",
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.alanacharya.ringo",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -32,7 +34,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      "expo-sqlite",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
