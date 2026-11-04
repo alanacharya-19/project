@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 import {
   addEvent,
-  deleteReminder as deleteReminderRow,
   findDuplicate,
   getReminder,
   insertReminder,
@@ -146,7 +145,28 @@ export async function deleteReminder(reminder: Reminder): Promise<void> {
   await cancelReminderNotifications(reminder);
   await cancelSnoozeNotification(reminder);
   await acknowledgeNativeCall(reminder.id);
-  await deleteReminderRow(reminder.id);
+  // Soft delete keeps the reminder's occurrence history available in the
+  // calendar while removing it from active schedules and upcoming lists.
+  await updateReminderStatus(reminder.id, 'cancelled');
+}
+
+/**
+ * Marks the occurrence as accepted while the call is in progress. It does not
+ * advance a repeating series: the active-call screen decides whether the call
+ * was completed, snoozed, or simply hung up.
+ */
+export async function acceptReminder(
+  reminder: Reminder,
+  occurrence: Date,
+): Promise<Reminder> {
+  const iso = occurrence.toISOString();
+  const latest = await latestEventForOccurrence(reminder.id, iso);
+  if (!latest || latest.status !== 'answered') {
+    await addEvent(eventId(reminder.id, iso, 'answered'), reminder.id, iso, 'answered');
+  }
+  await updateReminderStatus(reminder.id, 'answered');
+  await acknowledgeNativeCall(reminder.id);
+  return (await getReminder(reminder.id)) ?? { ...reminder, status: 'answered' };
 }
 
 export async function markAnswered(
@@ -154,7 +174,11 @@ export async function markAnswered(
   occurrence: Date,
   settings: AppSettings,
 ): Promise<Reminder> {
-  await addEvent(eventId(reminder.id, occurrence.toISOString(), 'answered'), reminder.id, occurrence.toISOString(), 'answered');
+  const iso = occurrence.toISOString();
+  const latest = await latestEventForOccurrence(reminder.id, iso);
+  if (!latest || latest.status !== 'answered') {
+    await addEvent(eventId(reminder.id, iso, 'answered'), reminder.id, iso, 'answered');
+  }
   await updateReminderStatus(reminder.id, 'answered');
   await acknowledgeNativeCall(reminder.id);
 
@@ -163,8 +187,8 @@ export async function markAnswered(
     await updateReminderStatus(reminder.id, 'scheduled');
     return (await persistSchedule(seriesReminder, settings.repeatMissedCall)).reminder;
   }
-  const latest = await getReminder(reminder.id);
-  return latest ?? { ...reminder, status: 'answered' };
+  const current = await getReminder(reminder.id);
+  return current ?? { ...reminder, status: 'answered' };
 }
 
 export async function markDeclined(
@@ -200,6 +224,9 @@ export async function markMissed(
 
   if (reminder.repeatType === 'never' || !rescheduleSeries) {
     const nextStatus = reminder.repeatType === 'never' ? 'missed' : 'scheduled';
+    if (reminder.repeatType === 'never') {
+      await cancelReminderNotifications(reminder);
+    }
     await updateReminderStatus(reminder.id, nextStatus);
     return (await getReminder(reminder.id)) ?? { ...reminder, status: nextStatus };
   }
@@ -368,6 +395,38 @@ export async function runStartupMaintenance(
           { snoozedUntil: null },
         );
         changed.add(reminder.id);
+      }
+      continue;
+    }
+
+    if (reminder.status === 'ringing' || reminder.status === 'answered') {
+      const due = new Date(reminder.scheduledAt).getTime();
+      if (due + 2 * 60 * 60_000 < now && reminder.status === 'ringing') {
+        // The app was killed while a call was ringing. Record it honestly and
+        // move a repeating series on to its next occurrence.
+        await addEvent(
+          eventId(reminder.id, reminder.scheduledAt, 'missed'),
+          reminder.id,
+          reminder.scheduledAt,
+          'missed',
+        );
+        if (reminder.repeatType !== 'never') {
+          const seriesReminder = { ...reminder, status: 'scheduled' as const, snoozedUntil: null };
+          await updateReminderStatus(reminder.id, 'scheduled');
+          await persistSchedule(seriesReminder, settings.repeatMissedCall);
+        } else {
+          await updateReminderStatus(reminder.id, 'missed');
+        }
+        changed.add(reminder.id);
+      } else if (due + 6 * 60 * 60_000 < now && reminder.status === 'answered') {
+        // A call was accepted but never finished. Keep the answered history and
+        // continue a repeating series rather than leaving it stuck.
+        if (reminder.repeatType !== 'never') {
+          const seriesReminder = { ...reminder, status: 'scheduled' as const, snoozedUntil: null };
+          await updateReminderStatus(reminder.id, 'scheduled');
+          await persistSchedule(seriesReminder, settings.repeatMissedCall);
+          changed.add(reminder.id);
+        }
       }
       continue;
     }

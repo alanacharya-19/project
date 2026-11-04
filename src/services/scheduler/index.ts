@@ -1,12 +1,23 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { REMINDER_CATEGORY, REMINDER_CHANNEL } from '@/constants/config';
-import type { Reminder, ScheduleResult } from '@/types/reminder';
+import type { Reminder, RingtoneId, ScheduleResult } from '@/types/reminder';
 import { nextOccurrence, occurrenceAfter } from '@/utils/recurrence';
 import {
   buildNativePayload,
   getRingoAlarmNative,
 } from '@/services/native/ringoAlarm';
+
+const CHANNELS: Record<RingtoneId, string> = {
+  default: REMINDER_CHANNEL,
+  alarm: 'ringo-call-alarm',
+  ringtone: 'ringo-call-ringtone',
+  silent: 'ringo-call-silent',
+};
+
+export function reminderChannelId(ringtone: RingtoneId): string {
+  return CHANNELS[ringtone] ?? REMINDER_CHANNEL;
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({

@@ -97,7 +97,7 @@ function mapEvent(row: EventRow): ReminderEvent {
 export async function listReminders(): Promise<Reminder[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<ReminderRow>(
-    `SELECT * FROM reminders WHERE status != 'cancelled' ORDER BY scheduled_at ASC`,
+    `SELECT * FROM reminders ORDER BY scheduled_at ASC`,
   );
   return rows.map(mapReminder);
 }
