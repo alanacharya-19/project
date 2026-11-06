@@ -61,24 +61,29 @@ export async function initializeNotifications(): Promise<void> {
   }
 
   if (Platform.OS === 'android') {
-    try {
-      await Notifications.setNotificationChannelAsync(REMINDER_CHANNEL, {
-        name: 'RINGO reminder calls',
-        description: 'Incoming reminder alerts from RINGO',
-        importance: Notifications.AndroidImportance.MAX,
-        sound: 'default',
-        vibrationPattern: [0, 350, 250, 350],
-        enableVibrate: true,
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-        bypassDnd: false,
-        showBadge: false,
-        audioAttributes: {
-          usage: Notifications.AndroidAudioUsage.ALARM,
-          contentType: Notifications.AndroidAudioContentType.SONIFICATION,
-        },
-      });
-    } catch {
-      // Channels may be unavailable in Expo Go.
+    for (const [ringtone, channelId] of Object.entries(CHANNELS)) {
+      try {
+        await Notifications.setNotificationChannelAsync(channelId, {
+          name:
+            ringtone === 'silent'
+              ? 'RINGO silent calls'
+              : `RINGO calls · ${ringtone}`,
+          description: 'Incoming reminder alerts from RINGO',
+          importance: Notifications.AndroidImportance.MAX,
+          sound: ringtone === 'silent' ? null : 'default',
+          vibrationPattern: ringtone === 'silent' ? null : [0, 350, 250, 350],
+          enableVibrate: ringtone !== 'silent',
+          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+          bypassDnd: false,
+          showBadge: false,
+          audioAttributes: {
+            usage: Notifications.AndroidAudioUsage.ALARM,
+            contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+          },
+        });
+      } catch {
+        // Channel creation is best-effort.
+      }
     }
   }
 }
@@ -103,7 +108,7 @@ function contentFor(reminder: Reminder, occurrence: Date, snooze = false) {
   };
 }
 
-function weeklyTriggers(reminder: Reminder, occurrence: Date) {
+function weeklyTriggers(reminder: Reminder, occurrence: Date, channelId: string | undefined) {
   const hour = occurrence.getHours();
   const minute = occurrence.getMinutes();
   const delivery = Platform.OS === 'android' ? ('alarmClock' as const) : undefined;
@@ -122,7 +127,7 @@ function weeklyTriggers(reminder: Reminder, occurrence: Date) {
     weekday: day + 1, // expo uses 1 = Sunday
     hour,
     minute,
-    channelId: Platform.OS === 'android' ? REMINDER_CHANNEL : undefined,
+    channelId,
     delivery,
   }));
 }
@@ -179,7 +184,8 @@ function earliestRepeatSlot(reminder: Reminder, now: Date): Date | null {
 }
 
 function buildTriggers(reminder: Reminder, firstOccurrence: Date) {
-  const androidChannel = Platform.OS === 'android' ? { channelId: REMINDER_CHANNEL } : {};
+  const channelId = Platform.OS === 'android' ? reminderChannelId(reminder.ringtone) : undefined;
+  const androidChannel = channelId ? { channelId } : {};
   const delivery = Platform.OS === 'android' ? { delivery: 'alarmClock' as const } : {};
   const hour = firstOccurrence.getHours();
   const minute = firstOccurrence.getMinutes();
@@ -233,27 +239,42 @@ function buildTriggers(reminder: Reminder, firstOccurrence: Date) {
       },
     ];
   }
-  return weeklyTriggers(reminder, firstOccurrence);
+  return weeklyTriggers(reminder, firstOccurrence, channelId);
 }
 
 async function scheduleWithExpo(reminder: Reminder, occurrence: Date): Promise<ScheduleResult> {
   const triggers = buildTriggers(reminder, occurrence);
   const identifiers: string[] = [];
+  let failed = 0;
   for (let i = 0; i < triggers.length; i += 1) {
-    const identifier = await Notifications.scheduleNotificationAsync({
-      content: contentFor(reminder, occurrence),
-      trigger: triggers[i] as Notifications.NotificationTriggerInput,
-    });
-    identifiers.push(identifier);
+    try {
+      const identifier = await Notifications.scheduleNotificationAsync({
+        content: contentFor(reminder, occurrence),
+        trigger: triggers[i] as Notifications.NotificationTriggerInput,
+      });
+      identifiers.push(identifier);
+    } catch {
+      failed += 1;
+    }
+  }
+  const warnings: string[] = [];
+  if (failed > 0) {
+    warnings.push(
+      failed === triggers.length
+        ? 'RINGO saved this reminder but the system scheduler rejected it. Reopen RINGO to retry.'
+        : 'RINGO could not register every call with the system scheduler. Reopen RINGO to retry.',
+    );
+  }
+  if (Platform.OS === 'android') {
+    warnings.push(
+      'Full-screen call UI requires the RINGO development build. Alerts will still arrive in the notification shade.',
+    );
   }
   return {
     identifiers,
     exact: Platform.OS !== 'android' || (await safeExactPermission()),
     fullScreen: false,
-    warning:
-      Platform.OS === 'android'
-        ? 'Full-screen call UI requires the RINGO development build. Alerts will still arrive in the notification shade.'
-        : undefined,
+    warning: warnings.length ? warnings.join(' ') : undefined,
   };
 }
 
@@ -383,8 +404,9 @@ export async function scheduleSnoozeNotification(
       trigger: {
         type: 'date',
         date: fireAt,
-        channelId: Platform.OS === 'android' ? REMINDER_CHANNEL : undefined,
-      },
+        channelId:
+          Platform.OS === 'android' ? reminderChannelId(reminder.ringtone) : undefined,
+      } as Notifications.NotificationTriggerInput,
     });
   } catch {
     return null;

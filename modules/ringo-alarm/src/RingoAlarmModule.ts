@@ -1,7 +1,11 @@
-import { NativeModule, requireNativeModule } from 'expo';
+import { requireOptionalNativeModule } from 'expo';
+import type { RingoAlarmNativeModule } from './RingoAlarm.types';
 
-declare class RingoAlarmModule extends NativeModule<{}> {
-  setValueAsync(value: string): Promise<void>;
-}
+/**
+ * The Android alarm engine is optional so the app can still run in Expo Go and
+ * on iOS. All call sites must handle `null` and fall back to notifications.
+ */
+const RingoAlarm = requireOptionalNativeModule<RingoAlarmNativeModule>('RingoAlarm');
 
-export default requireNativeModule<RingoAlarmModule>('RingoAlarm');
+export default RingoAlarm;
+export * from './RingoAlarm.types';

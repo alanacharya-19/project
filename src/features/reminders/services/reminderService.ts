@@ -151,6 +151,24 @@ export async function deleteReminder(reminder: Reminder): Promise<void> {
 }
 
 /**
+ * Records that the call screen was opened. Native Android events also record
+ * this, so the event is de-duplicated per occurrence.
+ */
+export async function markRinging(
+  reminder: Reminder,
+  occurrence: Date,
+): Promise<void> {
+  const iso = occurrence.toISOString();
+  const latest = await latestEventForOccurrence(reminder.id, iso);
+  if (!latest || latest.status !== 'ringing') {
+    await addEvent(eventId(reminder.id, iso, 'ringing'), reminder.id, iso, 'ringing');
+  }
+  if (reminder.status === 'scheduled' || reminder.status === 'snoozed') {
+    await updateReminderStatus(reminder.id, 'ringing', { snoozedUntil: null });
+  }
+}
+
+/**
  * Marks the occurrence as accepted while the call is in progress. It does not
  * advance a repeating series: the active-call screen decides whether the call
  * was completed, snoozed, or simply hung up.

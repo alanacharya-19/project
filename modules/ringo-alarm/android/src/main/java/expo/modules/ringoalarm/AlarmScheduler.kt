@@ -74,7 +74,7 @@ object AlarmNotifier {
     )
     val builder = NotificationCompat.Builder(context, channelId)
       .setSmallIcon(R.drawable.ringo_notification)
-      .setColor(0xFFFF6B4A)
+      .setColor(android.graphics.Color.rgb(255, 107, 74))
       .setContentTitle("RINGO")
       .setContentText(alarm.title)
       .setSubText(

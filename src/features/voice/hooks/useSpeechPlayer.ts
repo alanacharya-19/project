@@ -111,7 +111,7 @@ export function useSpeechPlayer({
             if (session !== sessionRef.current) return;
             setIsSpeaking(true);
           },
-          onBoundary: (event) => {
+          onBoundary: (event: { charIndex?: number; charLength?: number }) => {
             if (session !== sessionRef.current) return;
             const charIndex = Number(event.charIndex ?? 0);
             const charLength = Math.max(1, Number(event.charLength ?? 1));

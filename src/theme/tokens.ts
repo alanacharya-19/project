@@ -1,4 +1,5 @@
 export type ThemeMode = 'light' | 'dark';
+export type ThemePreference = 'system' | ThemeMode;
 
 export const palette = {
   coral: '#FF6B4A',
@@ -68,7 +69,7 @@ export const lightColors = {
   scrim: 'rgba(15,12,9,0.42)',
 };
 
-export type ThemeColors = typeof darkColors;
+export type ThemeColors = { [K in keyof typeof darkColors]: string };
 
 export const spacing = {
   xs: 4,

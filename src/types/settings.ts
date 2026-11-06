@@ -1,5 +1,5 @@
 import type { Priority, RingtoneId } from '@/types/reminder';
-import type { ThemeMode as ThemePreference } from '@/theme/tokens';
+import type { ThemePreference } from '@/theme/tokens';
 
 export interface AppSettings {
   name: string;

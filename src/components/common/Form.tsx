@@ -49,12 +49,12 @@ export function FormField({
 export function TextField({
   label,
   hint,
-  style,
+  containerStyle,
   ...props
-}: TextInputProps & { label?: string; hint?: string; style?: StyleProp<ViewStyle> }) {
+}: TextInputProps & { label?: string; hint?: string; containerStyle?: StyleProp<ViewStyle> }) {
   const { colors } = useTheme();
   return (
-    <FormField label={label} hint={hint} style={style}>
+    <FormField label={label} hint={hint} style={containerStyle}>
       <View
         style={[
           styles.inputWrap,
@@ -64,7 +64,7 @@ export function TextField({
         <TextInput
           {...props}
           placeholderTextColor={colors.textMuted}
-          style={[styles.input, { color: colors.text }, props.style as object]}
+          style={[styles.input, { color: colors.text }, props.style]}
           selectionColor={colors.accent}
         />
       </View>
@@ -75,12 +75,12 @@ export function TextField({
 export function TextArea({
   label,
   hint,
-  style,
+  containerStyle,
   ...props
-}: TextInputProps & { label?: string; hint?: string; style?: StyleProp<ViewStyle> }) {
+}: TextInputProps & { label?: string; hint?: string; containerStyle?: StyleProp<ViewStyle> }) {
   const { colors } = useTheme();
   return (
-    <FormField label={label} hint={hint} style={style}>
+    <FormField label={label} hint={hint} style={containerStyle}>
       <View
         style={[
           styles.inputWrap,
@@ -93,7 +93,7 @@ export function TextArea({
           multiline
           textAlignVertical="top"
           placeholderTextColor={colors.textMuted}
-          style={[styles.input, styles.textArea, { color: colors.text }, props.style as object]}
+          style={[styles.input, styles.textArea, { color: colors.text }, props.style]}
           selectionColor={colors.accent}
         />
       </View>
